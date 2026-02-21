@@ -1,0 +1,56 @@
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Main.java to edit this template
+ */
+package motorph;
+
+/**
+ *
+ * @author Gerald Labini
+ */
+
+import java.util.Scanner;
+import java.util.ArrayList;
+        
+public class MotorPH {
+
+    /**
+     * @param args the command line arguments
+     */
+    public static void main(String[] args) {
+        // TODO code application logic here
+        ArrayList<Employee> employeeList = Employee.readCsv("C:\\Users\\Gerald Labini\\Documents\\NetBeansProjects\\EmployeeDetails\\MotorPH\\src/MotorPH_Employee Data - Employee Details.csv");
+        Scanner input = new Scanner(System.in);
+        
+    boolean found = false;
+    
+    while(!found){
+        System.out.println("Pleas Enter Employee ID ");
+        String searchID = input.nextLine();
+        
+        for (Employee emp: employeeList) {
+            if(emp.employeeID.equals(searchID)){
+                System.out.println("Employee ID " + emp.employeeID);
+                System.out.println("First Name " + emp.firstName);
+                System.out.println("Last Name " + emp.lastName);
+                System.out.println("Birthdate " + emp.birthday);
+                
+                found = true;
+                break;
+            }
+            boolean exitProgram = searchID.equalsIgnoreCase("Exit ");
+            if(exitProgram == true){
+            System.out.println("Exiting Program ");
+            System.exit(0);
+        }
+            
+        }
+        if(!found){
+            System.out.println("Invalid Input ");
+            
+        }
+    }
+    }
+    
+}
+
