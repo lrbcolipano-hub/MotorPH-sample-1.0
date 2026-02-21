@@ -1,0 +1,69 @@
+package motorph;
+
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+
+/**
+ *
+ * @author Gerald Labini
+ */
+
+import java.io.FileNotFoundException;
+import java.util.Scanner;
+import java.io.File;
+import java.util.ArrayList;
+
+public class Employee {
+    String employeeID;
+    String firstName;
+    String lastName;
+    String birthday;
+    
+    
+    public Employee(String id, String first, String last, String bday)
+{ 
+    this.employeeID = id;
+    this.firstName = first;
+    this.lastName = last;
+    this.birthday = bday;
+    }
+    
+    public static ArrayList<Employee> readCsv(String path)
+    {
+        ArrayList<Employee> employeeList = new ArrayList<>();
+        try{
+            File EmployeeDetails = new File(path);
+            Scanner csvReader = new Scanner(EmployeeDetails);
+            if(csvReader.hasNextLine()){
+                csvReader.nextLine();
+            }
+        
+            
+        while (csvReader.hasNextLine()){
+            String row = csvReader.nextLine();
+            String[] columns = row.split(",");
+            if (columns.length >= 4) {
+                Employee temp = new Employee(
+                        columns[0],
+                        columns[1],
+                        columns[2],
+                        columns[3]
+                );
+            employeeList.add(temp);}
+        }
+        csvReader.close();
+        }
+        catch (FileNotFoundException e){
+            System.out.println("CSV File Can't be located");
+            System.out.println(e.getMessage());
+            System.exit(0);
+            
+        }
+        return employeeList;
+        
+        
+        }}
+        
+    
