@@ -27,7 +27,10 @@ public class MotorPH {
         
         //for loop to iterate through each objects for details printing 
         for (Employee employee : employees) {
-            System.out.println(employee.displayDetails());
+            System.out.println("Employee #: " + employee.id);
+            System.out.println("Employee Name: "+ employee.displayName());
+            System.out.println("Birthday: " + employee.displayBirthDate());
+            System.out.println(" ");
         }
     }
     

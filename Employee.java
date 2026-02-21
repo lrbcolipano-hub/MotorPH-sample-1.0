@@ -25,10 +25,18 @@ public class Employee {
         this.id = id;
     }
 
-    //lets set a displayDetails method for easy printing of each attributes
-    public String displayDetails (){
+    //lets set a displayBirthdate method to display birthdate
+    public String displayBirthDate (){
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MMM-dd");//add DateTimeFormatter class to display the birth date in a more readable format
         String formattedDate = birthDate.format(formatter);
-        return "MotorPH employee: " + name + " " + "Employee ID: " + id + " " +  "Birthdate: " + formattedDate;
+        return formattedDate;    
+    }
+    //lets set a display name method to display name
+    public String displayName () {
+        return name;
+    }
+    //lets set a display ID method to display ID
+    private int displayID () {
+        return id;
     }
 }
