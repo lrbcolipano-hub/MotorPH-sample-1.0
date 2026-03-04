@@ -4,53 +4,474 @@
  */
 package motorph;
 
-/**
- *
- * @author Gerald Labini
- */
-
-import java.util.Scanner;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.time.Duration;
+import java.time.LocalTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-        
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Scanner;
+
 public class MotorPH {
 
-    /**
-     * @param args the command line arguments
-     */
+    // -- File paths ------------------------------------------------------------
+    static final String EMPLOYEE_CSV =
+        "C:\\Users\\Gerald Labini\\Documents\\NetBeansProjects\\EmployeeDetails\\MotorPH\\src\\MotorPH_Employee_Data.csv";
+    static final String ATTENDANCE_CSV =
+        "C:\\Users\\Gerald Labini\\Documents\\NetBeansProjects\\EmployeeDetails\\MotorPH\\src\\Attendance_Record.csv";
+
+    // -- Credentials -----------------------------------------------------------
+    static final String VALID_PASSWORD = "12345";
+
+    // -- Time constants --------------------------------------------------------
+    static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("H:mm");
+    static final LocalTime GRACE_TIME  = LocalTime.of(8, 10);
+    static final LocalTime CUTOFF_TIME = LocalTime.of(17, 0);
+
+    // -- Data stores -----------------------------------------------------------
+    static final HashMap<String, String> lastNameMap    = new HashMap<>();
+    static final HashMap<String, String> firstNameMap   = new HashMap<>();
+    static final HashMap<String, String> birthdayMap    = new HashMap<>();
+    static final HashMap<String, Double> hourlyRateMap  = new HashMap<>();
+    static final HashMap<String, Double> basicSalaryMap = new HashMap<>();
+
+    // -- SSS bracket table: { minSalary, maxSalary, MSC } ---------------------
+    static final double[][] SSS_TABLE = {
+        {     0,  4250,  4000}, {  4250,  4750,  4500}, {  4750,  5250,  5000},
+        {  5250,  5750,  5500}, {  5750,  6250,  6000}, {  6250,  6750,  6500},
+        {  6750,  7250,  7000}, {  7250,  7750,  7500}, {  7750,  8250,  8000},
+        {  8250,  8750,  8500}, {  8750,  9250,  9000}, {  9250,  9750,  9500},
+        {  9750, 10250, 10000}, { 10250, 10750, 10500}, { 10750, 11250, 11000},
+        { 11250, 11750, 11500}, { 11750, 12250, 12000}, { 12250, 12750, 12500},
+        { 12750, 13250, 13000}, { 13250, 13750, 13500}, { 13750, 14250, 14000},
+        { 14250, 14750, 14500}, { 14750, 15250, 15000}, { 15250, 15750, 15500},
+        { 15750, 16250, 16000}, { 16250, 16750, 16500}, { 16750, 17250, 17000},
+        { 17250, 17750, 17500}, { 17750, 18250, 18000}, { 18250, 18750, 18500},
+        { 18750, 19250, 19000}, { 19250, 19750, 19500}, { 19750, 20250, 20000},
+        { 20250, 20750, 20500}, { 20750, 21250, 21000}, { 21250, 21750, 21500},
+        { 21750, 22250, 22000}, { 22250, 22750, 22500}, { 22750, 23250, 23000},
+        { 23250, 23750, 23500}, { 23750, 24250, 24000}, { 24250, 24750, 24500},
+        { 24750, Double.MAX_VALUE, 25000}
+    };
+
+    static final String[] MONTH_NAMES = {
+        "", "June",
+        "July", "August", "September", "October", "November", "December"
+    };
+
+    // =========================================================================
+    //  MAIN
+    // =========================================================================
     public static void main(String[] args) {
-        // TODO code application logic here
-        ArrayList<Employee> employeeList = Employee.readCsv("C:\\Users\\Gerald Labini\\Documents\\NetBeansProjects\\EmployeeDetails\\MotorPH\\src/MotorPH_Employee Data - Employee Details.csv");
-        Scanner input = new Scanner(System.in);
-        
-    boolean found = false;
-    
-    while(!found){
-        System.out.println("Pleas Enter Employee ID ");
-        String searchID = input.nextLine();
-        
-        for (Employee emp: employeeList) {
-            if(emp.employeeID.equals(searchID)){
-                System.out.println("Employee ID " + emp.employeeID);
-                System.out.println("First Name " + emp.firstName);
-                System.out.println("Last Name " + emp.lastName);
-                System.out.println("Birthdate " + emp.birthday);
-                
-                found = true;
-                break;
+
+        loadEmployeeData();
+
+        Scanner sc = new Scanner(System.in);
+
+        System.out.println("============================================");
+        System.out.println("        MotorPH PAYROLL SYSTEM");
+        System.out.println("============================================");
+        System.out.print("Username: ");
+        String username = sc.nextLine().trim();
+        System.out.print("Password: ");
+        String password = sc.nextLine().trim();
+
+        boolean validUser = username.equals("employee") || username.equals("payroll_staff");
+
+        if (!validUser || !password.equals(VALID_PASSWORD)) {
+            System.out.println("Incorrect username and/or password.");
+            System.out.println("Program terminated.");
+            sc.close();
+            return;
+        }
+
+        if (username.equals("employee")) {
+            runEmployeeRole(sc);
+        } else {
+            runPayrollStaffRole(sc);
+        }
+
+        sc.close();
+    }
+
+    // =========================================================================
+    //  SHARED: Print Employee Details
+    // =========================================================================
+    static void printEmployeeDetails(String empNo) {
+        System.out.println("\n===================================");
+        System.out.println("        EMPLOYEE DETAILS");
+        System.out.println("===================================");
+        System.out.println("Employee #    : " + empNo);
+        System.out.println("Employee Name : " + lastNameMap.get(empNo) + ", " + firstNameMap.get(empNo));
+        System.out.println("Birthday      : " + birthdayMap.get(empNo));
+        System.out.printf( "Basic Salary  : Php%.2f%n", basicSalaryMap.get(empNo));
+        System.out.printf( "Hourly Rate   : Php%.2f%n", hourlyRateMap.get(empNo));
+        System.out.println("===================================");
+    }
+
+    // =========================================================================
+    //  EMPLOYEE ROLE
+    // =========================================================================
+    static void runEmployeeRole(Scanner sc) {
+        System.out.print("\nEnter your Employee Number to continue: ");
+        String empNo = sc.nextLine().trim();
+
+        if (!basicSalaryMap.containsKey(empNo)) {
+            System.out.println("Employee number does not exist. Program terminated.");
+            return;
+        }
+
+        while (true) {
+            System.out.println("\n============================================");
+            System.out.println("  Welcome, " + firstNameMap.get(empNo) + "!");
+            System.out.println("============================================");
+            System.out.println("  [1] View My Employee Details");
+            System.out.println("  [2] View My Payslip");
+            System.out.println("  [3] Exit");
+            System.out.print("Choice: ");
+            String choice = sc.nextLine().trim();
+
+            if (choice.equals("1")) {
+                printEmployeeDetails(empNo);
+            } else if (choice.equals("2")) {
+                runSelectMonthPayslip(sc, empNo);
+            } else if (choice.equals("3")) {
+                System.out.println("Program terminated.");
+                return;
+            } else {
+                System.out.println("Invalid choice. Please enter 1, 2, or 3.");
             }
-            boolean exitProgram = searchID.equalsIgnoreCase("Exit ");
-            if(exitProgram == true){
-            System.out.println("Exiting Program ");
-            System.exit(0);
-        }
-            
-        }
-        if(!found){
-            System.out.println("Invalid Input ");
-            
         }
     }
+
+    // =========================================================================
+    //  PAYROLL STAFF ROLE
+    // =========================================================================
+    static void runPayrollStaffRole(Scanner sc) {
+        while (true) {
+            System.out.println("\n============================================");
+            System.out.println("        PAYROLL STAFF MENU");
+            System.out.println("============================================");
+            System.out.println("  [1] View Employee Details");
+            System.out.println("  [2] Process Payroll");
+            System.out.println("  [3] Exit");
+            System.out.print("Choice: ");
+            String choice = sc.nextLine().trim();
+
+            if (choice.equals("1")) {
+                runViewEmployeeDetails(sc);
+            } else if (choice.equals("2")) {
+                runProcessPayroll(sc);
+            } else if (choice.equals("3")) {
+                System.out.println("Program terminated.");
+                return;
+            } else {
+                System.out.println("Invalid choice. Please enter 1, 2, or 3.");
+            }
+        }
     }
-    
+
+    // =========================================================================
+    //  VIEW EMPLOYEE DETAILS  (payroll_staff)
+    // =========================================================================
+    static void runViewEmployeeDetails(Scanner sc) {
+        while (true) {
+            System.out.println("\n--- View Employee Details ---");
+            System.out.println("  [1] View one employee");
+            System.out.println("  [2] View all employees");
+            System.out.println("  [3] Back");
+            System.out.print("Choice: ");
+            String choice = sc.nextLine().trim();
+
+            if (choice.equals("1")) {
+                System.out.print("Enter Employee Number: ");
+                String empNo = sc.nextLine().trim();
+                if (!basicSalaryMap.containsKey(empNo)) {
+                    System.out.println("Employee number does not exist.");
+                } else {
+                    printEmployeeDetails(empNo);
+                }
+            } else if (choice.equals("2")) {
+                ArrayList<String> ids = new ArrayList<>(basicSalaryMap.keySet());
+                Collections.sort(ids);
+                for (String id : ids) {
+                    printEmployeeDetails(id);
+                }
+            } else if (choice.equals("3")) {
+                return;
+            } else {
+                System.out.println("Invalid choice. Please enter 1, 2, or 3.");
+            }
+        }
+    }
+
+    // =========================================================================
+    //  PROCESS PAYROLL  (payroll_staff)
+    // =========================================================================
+    static void runProcessPayroll(Scanner sc) {
+        while (true) {
+            System.out.println("\n--- Process Payroll ---");
+            System.out.println("  [1] One employee");
+            System.out.println("  [2] All employees");
+            System.out.println("  [3] Back");
+            System.out.print("Choice: ");
+            String choice = sc.nextLine().trim();
+
+            if (choice.equals("1")) {
+                System.out.print("Enter Employee Number: ");
+                String empNo = sc.nextLine().trim();
+                if (!basicSalaryMap.containsKey(empNo)) {
+                    System.out.println("Employee number does not exist.");
+                } else {
+                    printEmployeeDetails(empNo);
+                    runSelectMonthPayslip(sc, empNo);
+                }
+            } else if (choice.equals("2")) {
+                ArrayList<String> ids = new ArrayList<>(basicSalaryMap.keySet());
+                Collections.sort(ids);
+                for (String id : ids) {
+                    printEmployeeDetails(id);
+                    printAllMonthsPayslip(id);
+                }
+            } else if (choice.equals("3")) {
+                return;
+            } else {
+                System.out.println("Invalid choice. Please enter 1, 2, or 3.");
+            }
+        }
+    }
+
+    // =========================================================================
+    //  MONTH SELECTION MENU
+    // =========================================================================
+    static void runSelectMonthPayslip(Scanner sc, String empNo) {
+        while (true) {
+            System.out.println("\n--- Select Month for Payslip ---");
+            System.out.println("  [6]  June");
+            System.out.println("  [7]  July");
+            System.out.println("  [8]  August");
+            System.out.println("  [9]  September");
+            System.out.println("  [10] October");
+            System.out.println("  [11] November");
+            System.out.println("  [12] December");
+            System.out.println("  [13] All Months");
+            System.out.println("  [14] Back");
+            System.out.print("Choice: ");
+            String choice = sc.nextLine().trim();
+
+            if (choice.equals("14")) {
+                return;
+            } else if (choice.equals("13")) {
+                printAllMonthsPayslip(empNo);
+            } else {
+                int monthNum;
+                try {
+                    monthNum = Integer.parseInt(choice);
+                } catch (NumberFormatException e) {
+                    System.out.println("Invalid choice. Please enter a number from 1 to 14.");
+                    continue;
+                }
+                if (monthNum < 1 || monthNum > 12) {
+                    System.out.println("Invalid choice. Please enter a number from 1 to 14.");
+                } else {
+                    printMonthPayslip(empNo, monthNum);
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    //  PRINT PAYSLIP: ALL MONTHS
+    // =========================================================================
+    static void printAllMonthsPayslip(String empNo) {
+        System.out.println("\n============================================");
+        System.out.println("      PAYSLIP SUMMARY - ALL MONTHS");
+        System.out.println("  " + lastNameMap.get(empNo) + ", " + firstNameMap.get(empNo)
+                           + "  (Employee #" + empNo + ")");
+        System.out.println("============================================");
+        for (int month = 1; month <= 12; month++) {
+            printMonthPayslip(empNo, month);
+        }
+    }
+
+    // =========================================================================
+    //  PRINT PAYSLIP: SINGLE MONTH
+    // =========================================================================
+    static void printMonthPayslip(String empNo, int month) {
+
+        double hourlyRate  = hourlyRateMap.get(empNo);
+        double basicSalary = basicSalaryMap.get(empNo);
+        double firstHalf   = 0;
+        double secondHalf  = 0;
+        int daysInMonth    = YearMonth.of(2024, month).lengthOfMonth();
+
+        try (BufferedReader br = new BufferedReader(new FileReader(ATTENDANCE_CSV))) {
+            br.readLine(); // skip header
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                String[] data = line.split(",");
+                if (data.length < 6) continue;
+                if (!data[0].trim().equals(empNo)) continue;
+
+                String[] dateParts = data[3].trim().split("/");
+                int recordMonth    = Integer.parseInt(dateParts[0]);
+                int day            = Integer.parseInt(dateParts[1]);
+                int year           = Integer.parseInt(dateParts[2]);
+
+                if (year != 2024 || recordMonth != month) continue;
+
+                LocalTime login  = LocalTime.parse(data[4].trim(), TIME_FORMAT);
+                LocalTime logout = LocalTime.parse(data[5].trim(), TIME_FORMAT);
+                double hours     = computeHours(login, logout);
+
+                if (day <= 15) firstHalf  += hours;
+                else           secondHalf += hours;
+            }
+        } catch (Exception e) {
+            System.out.println("Error reading attendance for month " + month + ": " + e.getMessage());
+            return;
+        }
+
+        // -- Salary computation -----------------------------------------------
+        double gross1          = computeGross(firstHalf, hourlyRate);
+        double gross2          = computeGross(secondHalf, hourlyRate);
+        double sss             = computeSSS(basicSalary);
+        double philHealth      = computePhilHealth(basicSalary);
+        double pagIbig         = computePagIbig(basicSalary);
+        double monthlyGross    = computeMonthlyGross(gross1, gross2);
+        double taxableIncome   = computeMonthlyTaxable(monthlyGross, sss, philHealth, pagIbig);
+        double tax             = computeWithholdingTax(taxableIncome);
+        double totalDeductions = sss + philHealth + pagIbig + tax;
+        double net1            = gross1;
+        double net2            = gross2 - totalDeductions;
+        String monthName       = MONTH_NAMES[month];
+
+        // -- Cutoff 1 ---------------------------------------------------------
+        System.out.println("\n==========================================");
+        System.out.println("  PAYSLIP: " + monthName + " 2024  |  " +
+                           lastNameMap.get(empNo) + ", " + firstNameMap.get(empNo));
+        System.out.println("==========================================");
+        System.out.println("  Cutoff 1: " + monthName + " 1 - 15");
+        System.out.println("  (8 hrs/day x 5 days/wk x 2 wks = 80 hrs max)");
+        System.out.println("------------------------------------------");
+        System.out.printf("Total Hours Worked : %.2f / 80.00 hrs%n", firstHalf);
+        System.out.printf("Gross Salary       : Php%.2f%n", gross1);
+        System.out.printf("Net Salary         : Php%.2f%n", net1);
+
+        // -- Cutoff 2 ---------------------------------------------------------
+        System.out.println("\n  Cutoff 2: " + monthName + " 16 - " + daysInMonth);
+        System.out.println("  (8 hrs/day x 5 days/wk x 2 wks = 80 hrs max)");
+        System.out.println("------------------------------------------");
+        System.out.printf("Total Hours Worked : %.2f / 80.00 hrs%n", secondHalf);
+        System.out.printf("Gross Salary       : Php%.2f%n", gross2);
+        System.out.println("\n  Statutory Deductions:");
+        System.out.printf("    SSS        : Php%.2f%n", sss);
+        System.out.printf("    PhilHealth : Php%.2f%n", philHealth);
+        System.out.printf("    Pag-IBIG   : Php%.2f%n", pagIbig);
+        System.out.printf("    Tax        : Php%.2f%n", tax);
+        System.out.printf("    Subtotal   : Php%.2f%n", totalDeductions);
+        System.out.printf("Net Salary         : Php%.2f%n", net2);
+        System.out.println("==========================================");
+    }
+
+    // =========================================================================
+    //  HOURS COMPUTATION
+    // =========================================================================
+    static double computeHours(LocalTime login, LocalTime logout) {
+        if (logout.isAfter(CUTOFF_TIME)) {
+            logout = CUTOFF_TIME;
+        }
+        long minutesWorked = Duration.between(login, logout).toMinutes();
+        if (minutesWorked > 60) {
+            minutesWorked -= 60;
+        } else {
+            minutesWorked = 0;
+        }
+        double hours = minutesWorked / 60.0;
+        if (!login.isAfter(GRACE_TIME)) {
+            return 8.0;
+        }
+        return Math.min(hours, 8.0);
+    }
+
+    // =========================================================================
+    //  SALARY COMPUTATION
+    // =========================================================================
+    static double computeGross(double hours, double hourlyRate) {
+        return hourlyRate * hours;
+    }
+
+    static double computeMonthlyGross(double gross1, double gross2) {
+        return gross1 + gross2;
+    }
+
+    static double computeMonthlyTaxable(double monthlyGross, double sss,
+                                        double philHealth, double pagIbig) {
+        return monthlyGross - sss - philHealth - pagIbig;
+    }
+
+    // =========================================================================
+    //  GOVERNMENT DEDUCTION CALCULATORS
+    // =========================================================================
+    static double computeSSS(double salary) {
+        for (double[] bracket : SSS_TABLE) {
+            if (salary >= bracket[0] && salary < bracket[1]) {
+                return bracket[2] * 0.045;
+            }
+        }
+        return 25000 * 0.045;
+    }
+
+    static double computePhilHealth(double salary) {
+        return salary * 0.01;
+    }
+
+    static double computePagIbig(double salary) {
+        return Math.min(salary * 0.02, 100.00);
+    }
+
+    static double computeWithholdingTax(double taxable) {
+        if      (taxable <= 20833)  return 0;
+        else if (taxable <= 33332)  return (taxable - 20833) * 0.20;
+        else if (taxable <= 66666)  return 2500 + (taxable - 33333) * 0.25;
+        else if (taxable <= 166666) return 10833 + (taxable - 66667) * 0.30;
+        else if (taxable <= 666666) return 40833.33 + (taxable - 166667) * 0.32;
+        else                        return 200833.33 + (taxable - 666667) * 0.35;
+    }
+
+    // =========================================================================
+    //  CSV LOADER
+    // =========================================================================
+    static void loadEmployeeData() {
+        try (BufferedReader br = new BufferedReader(new FileReader(EMPLOYEE_CSV))) {
+            br.readLine(); // skip header
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
+                String[] col = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+                for (int i = 0; i < col.length; i++) {
+                    col[i] = col[i].replaceAll("^\"|\"$", "").trim();
+                    col[i] = col[i].replace(",", "");
+                }
+                if (col.length < 19) continue;
+                try {
+                    String id = col[0];
+                    lastNameMap.put(id,    col[1]);
+                    firstNameMap.put(id,   col[2]);
+                    birthdayMap.put(id,    col[3]);
+                    basicSalaryMap.put(id, Double.parseDouble(col[13]));
+                    hourlyRateMap.put(id,  Double.parseDouble(col[18]));
+                } catch (NumberFormatException e) {
+                    System.out.println("Skipping malformed row: " + col[0]);
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("Error reading employee file: " + e.getMessage());
+        }
+    }
 }
 
